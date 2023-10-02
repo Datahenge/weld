@@ -17,7 +17,7 @@ use database::errors::Errors::{Conflict, NotFound};
 
 use self::query_api::Queries;
 
-type FutureBox = Box<Future<Item = Response, Error = Error>>;
+type FutureBox = Box<dyn Future<Item = Response, Error = Error>>; // trait objects without an explicit `dyn` are deprecated
 
 /// A Simple struct to represent rest service.
 pub struct RestService {
