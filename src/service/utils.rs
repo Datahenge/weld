@@ -2,39 +2,38 @@
 //! Holds utility functions in order to help service layer.
 
 use hyper::StatusCode;
-use hyper::server::Response;
+use hyper::Response;
 use hyper::Error;
-use hyper::header::AccessControlAllowOrigin;
+// use hyper::header::AccessControlAllowOrigin;
 use futures;
 use futures::future::ok;
-use hyper::header::ContentType;
 use serde_json;
 
-type FutureBox = Box<dyn futures::Future<Item = Response, Error = Error>>; // trait objects without an explicit `dyn` are deprecated
+type FutureBox = Box<dyn futures::Future<Item = Response<()>, Error = Error>>; // trait objects without an explicit `dyn` are deprecated
 
 
 /// Prepares an error response , logs it, wraps to BoxFuture.
 pub fn error(
-    response: Response,
+    response: Response<()>,
     code: StatusCode,
     message: &str,
 ) -> FutureBox {
     Box::new(ok(response
-        .with_header(AccessControlAllowOrigin::Any)
-        .with_header(ContentType::plaintext())
+        .with_header(hyper::header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        .with_header("content-type", "plaintext")
         .with_status(code)
         .with_body(message.to_string())))
 }
 
 /// Prepares an success response, wraps to BoxFuture.
 pub fn success(
-    response: Response,
+    response: Response<()>,
     code: StatusCode,
     value: &serde_json::Value,
 ) -> FutureBox {
     Box::new(ok(response
-        .with_header(AccessControlAllowOrigin::Any)
-        .with_header(ContentType::json())
+        .with_header("Access-Control-Allow-Origin", "*")
+        .with_header("content-type", "json")
         .with_status(code)
         .with_body(serde_json::to_vec(&value).unwrap())))
 }

@@ -26,7 +26,7 @@ pub mod configuration;
 pub mod database;
 pub mod weld;
 
-use server::Server;
+use server::WeldServer;
 use std::env::args;
 
 fn main() {
@@ -34,9 +34,7 @@ fn main() {
     "started_at" => format!("{}", time::now().rfc3339()), "version" => env!("CARGO_PKG_VERSION"));
 
     load_config();
-
     load_db();
-
     start_server();
 }
 
@@ -63,5 +61,5 @@ fn load_db() {
 /// Starts server.
 fn start_server() {
     let config = weld::CONFIGURATION.lock().unwrap().server.clone();
-    Server::new(&config).start();
+    WeldServer::new(&config).start();
 }

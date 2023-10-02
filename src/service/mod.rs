@@ -6,9 +6,10 @@ pub mod query_api;
 
 use weld;
 use slog;
-use hyper::{Delete, Error, Get, Post, Put, StatusCode};
-use hyper::server::{Request, Response, Service};
+use hyper::{Error, StatusCode, Request, Response};
 use hyper;
+
+use hyper::service::Service;
 
 use futures::{Future, Stream};
 use futures_cpupool::CpuPool;
@@ -17,7 +18,7 @@ use database::errors::Errors::{Conflict, NotFound};
 
 use self::query_api::Queries;
 
-type FutureBox = Box<dyn Future<Item = Response, Error = Error>>; // trait objects without an explicit `dyn` are deprecated
+type FutureBox = Box<dyn Future<Item = Response<()>, Error = Error>>; // trait objects without an explicit `dyn` are deprecated
 
 /// A Simple struct to represent rest service.
 pub struct RestService {
@@ -33,7 +34,7 @@ impl RestService {
     /// To reach service Http Method must be GET.
     /// It works in acceptor thread. Since it is fast for small databases it is ok to work like this.
     /// Later all services must be handled under a new thread.
-    fn get(paths: Vec<String>, queries: Option<Queries>, response: Response) -> FutureBox {
+    fn get(paths: Vec<String>, queries: Option<Queries>, response: Response<()>) -> FutureBox {
         let mut db = weld::DATABASE.lock().unwrap();
         match db.read(&mut paths.clone(), queries) {
             Ok(record) => return utils::success(response, StatusCode::Ok, &record),
@@ -48,7 +49,7 @@ impl RestService {
     /// To reach service Http Method must be POST.
     /// It reads request in acceptor thread. Does all other operations at a differend thread.
     #[inline]
-    fn post(req: Request, paths: Vec<String>, response: Response) -> FutureBox {
+    fn post(req: Request<()>, paths: Vec<String>, response: Response<()>) -> FutureBox {
         Box::new(req.body().concat2().and_then(move |body| {
             let mut db = weld::DATABASE.lock().unwrap();
             match from_slice(body.to_vec().as_slice()) {
@@ -75,7 +76,7 @@ impl RestService {
     /// To reach service Http Method must be PUT.
     /// It reads request in acceptor thread. Does all other operations at a differend thread.
     #[inline]
-    fn put(req: Request, paths: Vec<String>, response: Response) -> FutureBox {
+    fn put(req: Request<()>, paths: Vec<String>, response: Response<()>) -> FutureBox {
         Box::new(req.body().concat2().and_then(move |body| {
             let mut db = weld::DATABASE.lock().unwrap();
             match from_slice(body.to_vec().as_slice()) {
@@ -106,7 +107,7 @@ impl RestService {
     /// To reach service Http Method must be DELETE.
     /// It reads request in acceptor thread. Does all other operations at a differend thread.
     #[inline]
-    fn delete(paths: Vec<String>, response: Response) -> FutureBox {
+    fn delete(paths: Vec<String>, response: Response<()>) -> FutureBox {
         let mut db = weld::DATABASE.lock().unwrap();
         match db.delete(&mut paths.clone()) {
             Ok(record) => {
@@ -124,22 +125,25 @@ impl RestService {
     }
 }
 
-/// Service implementation for the RestService. It is required by tokio to make it work with our service.
-impl Service for RestService {
+/// Service implementation for the RestService.
+/// It is required by tokio to make it work with our service.
+impl Service<()> for RestService {
     /// Type of the request
-    type Request = Request;
+    // type Request = Request;
+
     /// Type of the response
-    type Response = Response;
+    type Response = Response<()>;
+
     /// Type of the error
     type Error = hyper::Error;
 
     type Future = FutureBox;
     /// Type of the future
 
-    /// Entry point of the service. Pases path nad method and redirect to the correct function.
-    fn call(&self, req: Request) -> FutureBox {
+    /// Entry point of the service. Passes path and method and redirect to the correct function.
+    fn call(self: &mut RestService, req: Request<()>) -> FutureBox {
         let path_parts = utils::split_path(req.path().to_string());
-        let response = Response::new();
+        let response = Response::new(());
         // Table list
         if let 0 = path_parts.len() {
             // TODO: return as homepage with links
